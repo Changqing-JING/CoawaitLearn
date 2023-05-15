@@ -26,10 +26,11 @@ struct Task {
     }
 
     auto final_suspend() noexcept { // !! you forgot "noexcept"
-      if (prev_ != nullptr) {
-        auto hh = std::coroutine_handle<promise_type>::from_promise(*prev_);
-        hh.resume();
+
+      if (prev_) {
+        prev_.resume();
       }
+
       return std::suspend_never{};
     }
 
@@ -41,10 +42,10 @@ struct Task {
       value_ = value;
     }
     T value_;
-    promise_type *prev_ = nullptr;
+    std::coroutine_handle<promise_type> prev_;
   };
 
-  std::coroutine_handle<promise_type> waiting_; // !! To communicate with the promise_type
+  std::coroutine_handle<promise_type> waiting_;                           // !! To communicate with the promise_type
 
   Task(std::coroutine_handle<promise_type> waiting) : waiting_(waiting) { // !! save it
   }
@@ -57,14 +58,12 @@ struct Task {
   }
   void await_suspend(std::coroutine_handle<promise_type> h) {
 
-    waiting_.promise().prev_ = &h.promise();
+    waiting_.promise().prev_ = h;
   }
 
-  void await_resume() const noexcept {
-  }
-
-  const T &get() const noexcept {
-    return waiting_.promise().value_;
+  T await_resume() noexcept {
+    T value = std::move(waiting_.promise().value_);
+    return value;
   }
 };
 
@@ -124,8 +123,8 @@ Task<uint32_t> CDCStart() {
 Task<uint32_t> wrapperStart() {
   printf("wrapperStart enter\n");
   Task task = CDCStart();
-  co_await task;
-  uint32_t res = task.get();
+  uint32_t res = co_await task;
+
   printf("wrapperStart return %d\n", res);
   co_return res;
 }
