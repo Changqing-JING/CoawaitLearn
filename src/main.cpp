@@ -18,7 +18,7 @@ struct Task {
 
     auto get_return_object() {
 
-      return Task<T>(waiting_); // !! To communicate with the Task
+      return Task<T>(std::coroutine_handle<promise_type>::from_promise(*this)); // !! To communicate with the Task
     }
 
     auto initial_suspend() {
@@ -26,8 +26,10 @@ struct Task {
     }
 
     auto final_suspend() noexcept { // !! you forgot "noexcept"
-      if (waiting_)
-        waiting_.resume(); // !! resume anybody who is awaiting
+      if (prev_ != nullptr) {
+        auto hh = std::coroutine_handle<promise_type>::from_promise(*prev_);
+        hh.resume();
+      }
       return std::suspend_never{};
     }
 
@@ -36,15 +38,15 @@ struct Task {
     }
 
     void return_value(T value) {
-      waiting_.promise().value_ = value;
+      value_ = value;
     }
-    std::coroutine_handle<promise_type> waiting_; // !! the awaiting coroutine
     T value_;
+    promise_type *prev_ = nullptr;
   };
 
-  std::coroutine_handle<promise_type> &waiting_; // !! To communicate with the promise_type
+  std::coroutine_handle<promise_type> waiting_; // !! To communicate with the promise_type
 
-  Task(std::coroutine_handle<promise_type> &waiting) : waiting_(waiting) { // !! save it
+  Task(std::coroutine_handle<promise_type> waiting) : waiting_(waiting) { // !! save it
   }
 
   ~Task() {
@@ -55,7 +57,7 @@ struct Task {
   }
   void await_suspend(std::coroutine_handle<promise_type> h) {
 
-    waiting_ = h; // !! tell the promise_type who to resume when finished
+    waiting_.promise().prev_ = &h.promise();
   }
 
   void await_resume() const noexcept {
@@ -125,7 +127,7 @@ Task<uint32_t> wrapperStart() {
   co_await task;
   uint32_t res = task.get();
   printf("wrapperStart return %d\n", res);
-  // return;
+  co_return res;
 }
 
 int main() {
