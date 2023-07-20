@@ -45,12 +45,9 @@ struct Task {
     std::coroutine_handle<promise_type> prev_;
   };
 
-  std::coroutine_handle<promise_type> waiting_;                           // !! To communicate with the promise_type
+  std::coroutine_handle<promise_type> waiting_; // !! To communicate with the promise_type
 
   Task(std::coroutine_handle<promise_type> waiting) : waiting_(waiting) { // !! save it
-  }
-
-  ~Task() {
   }
 
   constexpr bool await_ready() const noexcept {
@@ -99,18 +96,8 @@ struct TimerAwaitable {
   std::coroutine_handle<> h_;
 };
 
-struct ST {
-  ST() {
-    printf("new ST\n");
-  }
-
-  ~ST() {
-    printf("~ST\n");
-  }
-};
-
 Task<uint32_t> CDCStart() {
-  ST st;
+
   printf("CDCStart enter\n");
   TimerAwaitable *pTimerAwaitable = new TimerAwaitable();
 
@@ -126,14 +113,14 @@ Task<uint32_t> wrapperStart() {
   uint32_t res = co_await task;
 
   printf("wrapperStart return %d\n", res);
-  co_return res;
+  co_return res + 5;
 }
 
 int main() {
 
   loop = uv_default_loop();
 
-  Task<uint32_t> t = wrapperStart();
+  auto t = wrapperStart();
 
   uv_run(loop, UV_RUN_DEFAULT);
 
