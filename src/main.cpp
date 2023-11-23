@@ -1,3 +1,4 @@
+#include <any>
 #include <coroutine>
 #include <cstdint>
 #include <cstdio>
@@ -6,7 +7,6 @@
 #include <stdexcept>
 #include "uv.h"
 
-template <typename T>
 struct Task {
 
   struct promise_type {
@@ -18,7 +18,7 @@ struct Task {
 
     auto get_return_object() {
 
-      return Task<T>(std::coroutine_handle<promise_type>::from_promise(*this)); // !! To communicate with the Task
+      return Task(std::coroutine_handle<promise_type>::from_promise(*this)); // !! To communicate with the Task
     }
 
     auto initial_suspend() {
@@ -38,10 +38,10 @@ struct Task {
       std::exit(1);
     }
 
-    void return_value(T value) {
+    void return_value(std::any value) {
       value_ = value;
     }
-    T value_;
+    std::any value_;
     std::coroutine_handle<promise_type> prev_;
   };
 
@@ -58,8 +58,8 @@ struct Task {
     waiting_.promise().prev_ = h;
   }
 
-  T await_resume() noexcept {
-    T value = std::move(waiting_.promise().value_);
+  std::any await_resume() noexcept {
+    std::any value = std::move(waiting_.promise().value_);
     return value;
   }
 };
@@ -96,7 +96,7 @@ struct TimerAwaitable {
   std::coroutine_handle<> h_;
 };
 
-Task<uint32_t> CDCStart() {
+Task CDCStart() {
 
   printf("CDCStart enter\n");
   TimerAwaitable *pTimerAwaitable = new TimerAwaitable();
@@ -107,13 +107,16 @@ Task<uint32_t> CDCStart() {
   co_return 5;
 }
 
-Task<uint32_t> wrapperStart() {
+Task wrapperStart() {
   printf("wrapperStart enter\n");
   Task task = CDCStart();
-  uint32_t res = co_await task;
+  std::any res = co_await task;
 
-  printf("wrapperStart return %d\n", res);
-  co_return res + 5;
+  uint32_t data = std::any_cast<uint32_t>(res);
+
+  printf("wrapperStart return %d\n", data);
+  uint64_t y = data + 5;
+  co_return y;
 }
 
 int main() {
